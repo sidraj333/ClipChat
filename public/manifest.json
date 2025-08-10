@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "ClipChat",
+  "version": "1.0.0",
+  "description": "Ask GPT questions about any YouTube video.",
+  "permissions": ["tabs", "storage", "sidePanel"],
+  "host_permissions": [
+    "*://www.youtube.com/*",
+    "https://api.openai.com/*"
+  ],
+  "background": { "service_worker": "background.js" },
+  "side_panel": {
+    "default_path": "index.html"   
+  },
+  "action": {
+    "default_title": "ClipChat"
+  }
+}
