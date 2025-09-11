@@ -6,6 +6,7 @@
   "permissions": ["tabs", "storage", "sidePanel"],
   "host_permissions": [
     "*://www.youtube.com/*",
+    "https://m.youtube.com/*",
     "https://api.openai.com/*"
   ],
   "background": { "service_worker": "background.js" },
@@ -14,5 +15,14 @@
   },
   "action": {
     "default_title": "ClipChat"
-  }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/watch", "*://m.youtube.com/watch"],
+      "js": ["button.js"],
+      "css": ["button.css"],
+      "run_at": "document_idle"
+    }
+  ]
+  
 }
