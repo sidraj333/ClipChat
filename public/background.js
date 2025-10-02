@@ -4,35 +4,40 @@ const YOUTUBE_ORIGINS = new Set(['https://www.youtube.com', 'https://m.youtube.c
 const YOUTUBE_PATHNAME = '/watch';
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("Clipchat was installed by user")
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(console.error);
+  chrome.contextMenus.create({
+    id: 'openSidePanel',
+    title: 'Open side panel',
+    contexts: ['all']
+  });
 });
 
-
-chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
-  console.log("listening for tabs")
-  if (!tab.url || info.status !== 'complete') return;
-
-
-  const url = new URL(tab.url);
-  const onYouTubeWatch = YOUTUBE_ORIGINS.has(url.origin) && url.pathname === YOUTUBE_PATHNAME;
-
-  
-  if (onYouTubeWatch) {
-    console.log(`user has entered a youtube video: ${tab.title}`);
-    await chrome.sidePanel.setOptions({ tabId, path: 'index.html', enabled: true }); //enable sidebar when user is on a youtube video
-  } else {
-    console.log('user has exited a youtube video');
-    await chrome.sidePanel.setOptions({ tabId, enabled: false }); //disable sidebar when user exites a youtube video
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === 'openSidePanel') {
+    // This will open the panel in all the pages on the current window.
+    chrome.sidePanel.open({ windowId: tab.id });
   }
 });
 
-// Correct message pipe from content script
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  console.log("listening for user to press panel")
-  if (msg?.type === 'OPEN_PANEL' && sender?.tab?.id) {
-    chrome.sidePanel.open({ tabId: sender.tab.id }).catch(console.error);
-    sendResponse({ ok: true });
+
+
+chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
+  // if (!tab.url) return;
+  const url = new URL(tab.url);
+  // Enables the side panel on youtube.com
+  if (YOUTUBE_ORIGINS.has(url.origin) && url.pathname === YOUTUBE_PATHNAME) {
+    console.log("user has entered youtube video: ", tab.title)
+    await chrome.sidePanel.setOptions({
+      tabId,
+      path: './index.html',
+      enabled: true
+    });
+  } else {
+    console.log("user exited youtube video")
+    // Disables the side panel on all other sites
+    await chrome.sidePanel.setOptions({
+      tabId,
+      enabled: false
+    });
   }
 });
 

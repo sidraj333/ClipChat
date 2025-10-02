@@ -3,7 +3,7 @@
   "name": "ClipChat",
   "version": "1.0.0",
   "description": "Ask GPT questions about any YouTube video.",
-  "permissions": ["tabs", "storage", "sidePanel"],
+  "permissions": ["tabs", "storage", "sidePanel", "contextMenus"],
   "host_permissions": [
     "*://www.youtube.com/*",
     "https://m.youtube.com/*",
