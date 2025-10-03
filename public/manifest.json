@@ -10,9 +10,6 @@
     "https://api.openai.com/*"
   ],
   "background": { "service_worker": "background.js" },
-  "side_panel": {
-    "default_path": "index.html"   
-  },
   "action": {
     "default_title": "ClipChat"
   },
