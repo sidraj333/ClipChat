@@ -36,7 +36,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
 
 
 
-//Helpers
+//helper functions
 async function enableSidePanel(tab) {
   if (!tab.url) return;
   const url = new URL(tab.url);
