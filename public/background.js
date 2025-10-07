@@ -24,6 +24,12 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   const tab = await chrome.tabs.get(tabId);
   enableSidePanel(tab)
+  chrome.runtime.sendMessage({
+    type: 'TAB_UPDATE',
+    tabId: tab.id,
+    tabUrl: tab.url,
+    tabTitle: tab.title
+  });
 });
 
 
@@ -32,11 +38,19 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
 //listener to handle user changing url in current tab
 chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
   enableSidePanel(tab);
+  //send tab info to react app
+  chrome.runtime.sendMessage({
+    type: 'TAB_UPDATE',
+    tabId: tab.id,
+    tabUrl: tab.url,
+    tabTitle: tab.title
+  });
+  
 });
 
 
-
 //helper functions
+
 async function enableSidePanel(tab) {
   if (!tab.url) return;
   const url = new URL(tab.url);
@@ -54,7 +68,7 @@ async function enableSidePanel(tab) {
       tabId: tab.id,
       enabled: false
     });
-  }
+  }   
 
 }
 
