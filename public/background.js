@@ -29,7 +29,7 @@ chrome.tabs.onActivated.addListener(async ({ tabId }) => {
     tabId: tab.id,
     tabUrl: tab.url,
     tabTitle: tab.title
-  });
+  }).catch(() => {});
 });
 
 
@@ -44,7 +44,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, info, tab) => {
     tabId: tab.id,
     tabUrl: tab.url,
     tabTitle: tab.title
-  });
+  }).catch(() => {}); 
   
 });
 
