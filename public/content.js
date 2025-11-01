@@ -6,10 +6,16 @@ function getVideoElement() {
     return document.querySelector("video")
 } 
 
+function getVideoId() {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get('v')
+}
+
 function getCurrentTime() {
     const video = getVideoElement();
     return video ? Math.floor(video.currentTime) : 0;
   }
+
 
 
 //listens for requests from app.jsx
