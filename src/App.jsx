@@ -5,15 +5,19 @@ export default function App() {
   const [videoData, setVideoData] = useState(null);
   const [text, setText] = useState("");
   const inputRef = useRef(null);
+
   useEffect(() => {
-    //listener to display correct chat for each tab
+    //listener to retrieve current tab information
     chrome.runtime.onMessage.addListener((message) => {
       if (message.type === 'TAB_UPDATE') {
         setTabInfo(message)
       }
     })
   }, []);
+
+
   const getVideoData = async () => {
+    //returns current video data sent from content.js
     if (!tabInfo?.tabId){
       console.log("tabinfo has no id: ", tabInfo)
       return;
@@ -27,9 +31,21 @@ export default function App() {
       console.log("Error: ", error)
     }
   }
-  const handleSubmit = () => {
-    console.log("pressed button")
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    console.log("EVENT OBJECT")
+    console.log(e)
+    await getVideoData();
+    const video_data = {
+      ...videoData,
+      text: text
+    }
+    console.log("DEBUG VIDEO DATA")
+    console.log(video_data)
+    return video_data
   }
+
   return (
     <div style={{ padding: "10px", width: "300px" }}>
       <h3>ClipChat</h3>
