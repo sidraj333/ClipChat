@@ -26,6 +26,71 @@ function getCurrentTime() {
     return video ? Math.floor(video.currentTime) : 0;
 }
 
+function getVideoDuration() {
+    const video = getVideoElement();
+    return video ? Math.floor(video.duration) : 0;
+}
+
+function getVideoDescription() {
+    const descElement = document.querySelector('ytd-text-inline-expander#description-inline-expander yt-attributed-string span');
+    return descElement ? descElement.textContent.trim() : '';
+}
+
+function getViewCount() {
+    const viewElement = document.querySelector('ytd-video-view-count-renderer span.view-count');
+    return viewElement ? viewElement.textContent.trim() : '';
+}
+
+function getUploadDate() {
+    const dateElement = document.querySelector('ytd-video-primary-info-renderer #info-strings yt-formatted-string');
+    return dateElement ? dateElement.textContent.trim() : '';
+}
+
+function getLikeCount() {
+    const likeButton = document.querySelector('like-button-view-model button');
+    const likeText = likeButton?.querySelector('[aria-label]')?.getAttribute('aria-label');
+    return likeText || '';
+}
+
+function isLiveVideo() {
+    const video = getVideoElement();
+    return video ? video.duration === Infinity : false;
+}
+
+function getPlaybackSpeed() {
+    const video = getVideoElement();
+    return video ? video.playbackRate : 1;
+}
+
+function getVideoQuality() {
+    const video = getVideoElement();
+    if (!video) return null;
+    return {
+        width: video.videoWidth,
+        height: video.videoHeight,
+        quality: `${video.videoHeight}p`
+    };
+}
+
+function isVideoPaused() {
+    const video = getVideoElement();
+    return video ? video.paused : true;
+}
+
+function getVideoTags() {
+    const tagElements = document.querySelectorAll('a.yt-formatted-string[href^="/hashtag/"]');
+    return Array.from(tagElements).map(tag => tag.textContent.trim());
+}
+
+function getChapters() {
+    const chapterElements = document.querySelectorAll('ytd-macro-markers-list-item-renderer');
+    return Array.from(chapterElements).map(chapter => {
+        const time = chapter.querySelector('#time')?.textContent?.trim();
+        const title = chapter.querySelector('#details h4')?.textContent?.trim();
+        return { time, title, seconds: timestampToSeconds(time) };
+    });
+}
+
 // Converts timestamp string to seconds (e.g., "4:45" -> 285, "1:23:45" -> 5025)
 function timestampToSeconds(timestamp) {
     if (!timestamp) return 0;
@@ -44,7 +109,6 @@ function timestampToSeconds(timestamp) {
 
 async function getVideoTranscript() {
     try {
-        // Find the transcript button
         const transcriptButton = document.querySelector('button[aria-label="Show transcript"]');
         
         if (!transcriptButton) {
@@ -59,7 +123,6 @@ async function getVideoTranscript() {
             await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-        // Get all transcript segments from the DOM
         const transcriptSegments = document.querySelectorAll('ytd-transcript-segment-renderer');
         
         if (transcriptSegments.length === 0) {
@@ -119,24 +182,59 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     if (message.type === 'GET_VIDEO_DATA') {
         (async () => {
+            const videoId = getVideoId();
             const curr_time = getCurrentTime();
+            const duration = getVideoDuration();
             const video_title = getVideoTitle();
             const channel_name = getChannelName();
+            const description = getVideoDescription();
+            const viewCount = getViewCount();
+            const uploadDate = getUploadDate();
+            const likeCount = getLikeCount();
+            const isLive = isLiveVideo();
+            const isPaused = isVideoPaused();
+            const playbackSpeed = getPlaybackSpeed();
+            const quality = getVideoQuality();
+            const tags = getVideoTags();
+            const chapters = getChapters();
             const transcript = await getVideoTranscript();
             const currentTranscriptSegment = getCurrentTranscriptSegment(transcript, curr_time);
                 
             console.log("current video transcript segment:", currentTranscriptSegment);
-            video_data_response = {
-                time: curr_time,
-                video_title: video_title,
-                channel_name: channel_name,
+            
+            const video_data_response = {
+                // Core video info
+                videoId: videoId,
+                videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+                title: video_title,
+                channel: channel_name,
+                description: description,
+                
+                // Playback info
+                currentTime: curr_time,
+                duration: duration,
+                progress: duration > 0 ? (curr_time / duration * 100).toFixed(1) : 0,
+                isPaused: isPaused,
+                isLive: isLive,
+                playbackSpeed: playbackSpeed,
+                quality: quality,
+                
+                // Metadata
+                viewCount: viewCount,
+                uploadDate: uploadDate,
+                likeCount: likeCount,
+                tags: tags,
+                chapters: chapters,
+                
+                // Transcript
                 transcript: transcript,
-                currentTranscriptSegment: currentTranscriptSegment
+                currentTranscriptSegment: currentTranscriptSegment,
             }
+            
             console.log("VIDEO DATA RESPONSE: ", video_data_response)
             sendResponse(video_data_response);
         })();
         
         return true; // Keep message channel open for async response
     }
-})
+});
