@@ -2,7 +2,10 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 from openai import OpenAI
+# third‑party helper for fetching YouTube transcripts via Python
+from youtube_transcript_api import YouTubeTranscriptApi
 
 app = FastAPI()
 
@@ -14,14 +17,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# class AskRequest(BaseModel):
-#     videoId: str | None = None
-#     currentTime: float | None = None
-#     duration: float | None = None
-#     isPlaying: bool | None = None
-#     title: str | None = None
-#     channel: str | None = None
-#     question: str  # required
+class AskRequest(BaseModel):
+    videoId: Optional[str] = None
+    currentTime: Optional[float] = None
+    duration: Optional[float] = None
+    isPlaying: Optional[bool] = None
+    title: Optional[str] = None
+    channel: Optional[str] = None
+    question: str  # required
 
 class AskResponse(BaseModel):
     answer: str
@@ -33,8 +36,8 @@ client = OpenAI(api_key=api_key)
 
 
 
-@app.post("/chat")
-async def ask(req):
+@app.post("/chat", response_model=AskResponse)
+async def ask(req: AskRequest):
     '''
         post request to ask gpt api a question about the youtube video
     '''
@@ -44,9 +47,9 @@ async def ask(req):
     
     gpt_base_prompt = (
         "You are ClipChat, an assistant that answers questions about a YouTube video. "
-        "Use the provided title, channel, and timestamp to ground your answer. "
-        "If you don't have enough context, answer in a general but helpful way and say "
-        "that you're inferring from limited information."
+        "Use the provided video metadata and transcript to answer the user's question. "
+        "feel free to use the internet and search to better your answers"
+        "if you do not know the answer, say you are infering from the internet as you use it to formulate your answer"
     )
 
     user_prompt = f'''
@@ -61,6 +64,12 @@ async def ask(req):
     '''
 
     try:
+        if req.videoId:
+            full_formatted_transcript = await fetch_transcript(req.videoId)
+        else:
+            full_formatted_transcript = ""
+    
+        user_prompt += f"\nTranscript: {full_formatted_transcript}"
         completion = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=[
@@ -69,8 +78,10 @@ async def ask(req):
             ],
             temperature=0.4,
         )
+
         answer_text = completion.choices[0].message.content
         print(answer_text)
+
         return AskResponse(
             answer=answer_text,
             status_code = 200
@@ -83,6 +94,35 @@ async def ask(req):
             answer="Internal Server Error",
             status_code = 500
         )
+
+
+
+async def fetch_transcript(video_id: str):
+    try:
+        ytt = YouTubeTranscriptApi()
+        fetched_data = ytt.fetch(video_id, languages=["en"])
+
+        print("Fetched raw transcript data:", fetched_data)
+
+        if not fetched_data or not hasattr(fetched_data, 'snippets'):
+            #unable ot fetch transcript
+            return ""
+
+        segments = [
+            {
+                "timestamp": item.start, 
+                "text": item.text, 
+                "seconds": item.start,
+                "end_seconds": item.start + item.duration,
+        
+            } 
+            for item in fetched_data.snippets
+        ]
+    except Exception as e:
+        print(f"Error fetching transcript for video {video_id}: {e}")
+        return ""
+
+    return " ".join(item["text"] for item in segments)
 
 
     
