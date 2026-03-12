@@ -43,55 +43,76 @@ async def ask(req: AskRequest):
     '''
     print('asking')
     print(req)
-
-    video_metadata = await fetch_video_metadata(req.videoId) if req.videoId else {}
-    
-    gpt_base_prompt = (
-        "You are ClipChat, an assistant that answers questions about a YouTube video. "
-        "Use the provided video metadata and transcript to answer the user's question. "
-        "feel free to use the internet and search to better your answers"
-        "if you do not know the answer, say you are infering from the internet as you use it to formulate your answer"
-    )
-
-     # Merge client runtime state + backend API metadata
-    video_context = {
-        "videoId": req.videoId,
-        "currentTime": req.currentTime,
-        "isPaused": req.isPaused,
-        "isPlaying": (None if req.isPaused is None else (not req.isPaused)),
-        "playbackSpeed": req.playbackSpeed,
-
-        "title": video_metadata.get("title"),
-        "channel": video_metadata.get("channelName"),
-        "channelId": video_metadata.get("channelId"),
-        "durationSeconds": video_metadata.get("durationSeconds"),
-        "publishedAt": video_metadata.get("publishedAt"),
-        "viewCount": video_metadata.get("viewCount"),
-        "likeCount": video_metadata.get("likeCount"),
-        "commentCount": video_metadata.get("commentCount"),
-        "thumbnailUrl": video_metadata.get("thumbnailUrl"),
-        "isLive": video_metadata.get("isLive"),
-    }
-
-
     try:
+
+        video_metadata = await fetch_video_metadata(req.videoId) if req.videoId else {}
+
         if req.videoId:
             full_formatted_transcript = await fetch_transcript(req.videoId)
         else:
             full_formatted_transcript = ""
+        
+        gpt_base_prompt = """
+            You are ClipChat.
+            Answer the user's question directly.
+            If the question is NOT about this video, say that clearly and answer generally if possible.
+            Keep answers concise.
+        """
+
+
+        # Merge client runtime state + backend API metadata
+        user_prompt = {
+            "videoId": req.videoId,
+            "currentTime": req.currentTime,
+            "isPaused": req.isPaused,
+            "isPlaying": (None if req.isPaused is None else (not req.isPaused)),
+            "playbackSpeed": req.playbackSpeed,
+
+            "title": video_metadata.get("title"),
+            "channel": video_metadata.get("channelName"),
+            "channelId": video_metadata.get("channelId"),
+            "durationSeconds": video_metadata.get("durationSeconds"),
+            "publishedAt": video_metadata.get("publishedAt"),
+            "viewCount": video_metadata.get("viewCount"),
+            "likeCount": video_metadata.get("likeCount"),
+            "commentCount": video_metadata.get("commentCount"),
+            "thumbnailUrl": video_metadata.get("thumbnailUrl"),
+            "isLive": video_metadata.get("isLive"),
+            "transcript": full_formatted_transcript,
+
+        }
+
+        print("user_prompt:", user_prompt)
+
+        user_content = f"""
+        User question: {req.question}
+
+        Video metadata:
+        - Video ID: {user_prompt.get("videoId")}
+        - Title: {user_prompt.get("title")}
+        - Channel: {user_prompt.get("channel")}
+        - Channel ID: {user_prompt.get("channelId")}
+        - Duration (seconds): {user_prompt.get("durationSeconds")}
+        - Current Time (seconds): {user_prompt.get("currentTime")}
+        - Is Paused: {user_prompt.get("isPaused")}
+        - Is Playing: {user_prompt.get("isPlaying")}
+        - Playback Speed: {user_prompt.get("playbackSpeed")}
+
+        Transcript context:
+        {full_formatted_transcript[:6000]}
+        """
     
-        user_prompt += f"\nTranscript: {full_formatted_transcript}"
         completion = client.chat.completions.create(
             model="gpt-4.1-mini",
             messages=[
                 {"role": "system", "content": gpt_base_prompt},
-                {"role": "user", "content": user_prompt},
+                {"role": "user", "content": user_content},
             ],
-            temperature=0.4,
+            temperature=0.2,
         )
 
         answer_text = completion.choices[0].message.content
-        print(answer_text)
+        print("answer text: ", answer_text)
 
         return AskResponse(
             answer=answer_text,
