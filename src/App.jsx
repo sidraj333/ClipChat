@@ -59,10 +59,9 @@ export default function App() {
     const body = {
       question: userMsg.text,
       videoId: videoData?.videoId,
-      title: videoData?.title,
-      channel: videoData?.channel,
       currentTime: videoData?.currentTime,
-      duration: videoData?.duration,
+      isPaused: videoData?.isPaused,
+      playbackSpeed: videoData?.playbackSpeed,
     };
 
     const pending = pushMessage("assistant", "…thinking");

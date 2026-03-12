@@ -1,9 +1,11 @@
 import os
+import re
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from openai import OpenAI
+import httpx
 # third‑party helper for fetching YouTube transcripts via Python
 from youtube_transcript_api import YouTubeTranscriptApi
 
@@ -18,13 +20,11 @@ app.add_middleware(
 )
 
 class AskRequest(BaseModel):
+    question: str
     videoId: Optional[str] = None
     currentTime: Optional[float] = None
-    duration: Optional[float] = None
-    isPlaying: Optional[bool] = None
-    title: Optional[str] = None
-    channel: Optional[str] = None
-    question: str  # required
+    isPaused: Optional[bool] = None
+    playbackSpeed: Optional[float] = None
 
 class AskResponse(BaseModel):
     answer: str
@@ -44,6 +44,7 @@ async def ask(req: AskRequest):
     print('asking')
     print(req)
 
+    video_metadata = await fetch_video_metadata(req.videoId) if req.videoId else {}
     
     gpt_base_prompt = (
         "You are ClipChat, an assistant that answers questions about a YouTube video. "
@@ -52,16 +53,26 @@ async def ask(req: AskRequest):
         "if you do not know the answer, say you are infering from the internet as you use it to formulate your answer"
     )
 
-    user_prompt = f'''
-        User question: {req.question}
-        Video metadata:
-        - Video ID: {req.videoId}
-        - Title: {req.title}
-        - Channel: {req.channel}
-        - Current Time (seconds): {req.currentTime}
-        - Duration (seconds): {req.duration}
-        - Is Playing: {req.isPlaying}
-    '''
+     # Merge client runtime state + backend API metadata
+    video_context = {
+        "videoId": req.videoId,
+        "currentTime": req.currentTime,
+        "isPaused": req.isPaused,
+        "isPlaying": (None if req.isPaused is None else (not req.isPaused)),
+        "playbackSpeed": req.playbackSpeed,
+
+        "title": video_metadata.get("title"),
+        "channel": video_metadata.get("channelName"),
+        "channelId": video_metadata.get("channelId"),
+        "durationSeconds": video_metadata.get("durationSeconds"),
+        "publishedAt": video_metadata.get("publishedAt"),
+        "viewCount": video_metadata.get("viewCount"),
+        "likeCount": video_metadata.get("likeCount"),
+        "commentCount": video_metadata.get("commentCount"),
+        "thumbnailUrl": video_metadata.get("thumbnailUrl"),
+        "isLive": video_metadata.get("isLive"),
+    }
+
 
     try:
         if req.videoId:
@@ -96,6 +107,72 @@ async def ask(req: AskRequest):
         )
 
 
+async def fetch_video_metadata(video_id: str):
+    '''
+        fetches video metadata using youtube data api v3
+        not currently used but can be used in the future to provide more context to gpt about the video
+    '''
+    youtube_api_key = os.environ.get("YOUTUBE_API_KEY")
+    if not youtube_api_key:
+        print("YOUTUBE_API_KEY is missing")
+        return {}
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as http_client:
+            response = await http_client.get(
+                "https://www.googleapis.com/youtube/v3/videos",
+                params={
+                    "part": "snippet,contentDetails,statistics,liveStreamingDetails",
+                    "id": video_id,
+                    "key": youtube_api_key,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+    except Exception as e:
+        print(f"Error calling YouTube Data API for video {video_id}: {e}")
+        return {}
+
+    items = payload.get("items", [])
+    if not items:
+        print(f"No metadata found for video {video_id}")
+        return {}
+
+    item = items[0]
+    snippet = item.get("snippet", {})
+    content_details = item.get("contentDetails", {})
+    statistics = item.get("statistics", {})
+    live_streaming = item.get("liveStreamingDetails", {})
+    raw_duration = content_details.get("duration")
+
+    return {
+        "videoId": item.get("id"),
+        "title": snippet.get("title"),
+        "channelName": snippet.get("channelTitle"),
+        "channelId": snippet.get("channelId"),
+        "publishedAt": snippet.get("publishedAt"),
+        "duration": raw_duration,
+        "durationSeconds": parse_iso8601_duration_to_seconds(raw_duration),
+        "viewCount": statistics.get("viewCount"),
+        "likeCount": statistics.get("likeCount"),
+        "commentCount": statistics.get("commentCount"),
+        "thumbnailUrl": (snippet.get("thumbnails", {}).get("high") or {}).get("url"),
+        "isLive": bool(live_streaming),
+    }
+
+
+def parse_iso8601_duration_to_seconds(raw_duration: Optional[str]) -> Optional[int]:
+    if not raw_duration:
+        return None
+
+    match = re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", raw_duration)
+    if not match:
+        return None
+
+    hours = int(match.group(1) or 0)
+    minutes = int(match.group(2) or 0)
+    seconds = int(match.group(3) or 0)
+    return (hours * 3600) + (minutes * 60) + seconds
 
 async def fetch_transcript(video_id: str):
     try:
