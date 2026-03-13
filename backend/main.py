@@ -8,8 +8,6 @@ from pydantic import BaseModel
 from typing import Any, Optional
 from openai import OpenAI
 import httpx
-# third‑party helper for fetching YouTube transcripts via Python
-from youtube_transcript_api import YouTubeTranscriptApi
 
 app = FastAPI()
 
@@ -253,31 +251,44 @@ def parse_iso8601_duration_to_seconds(raw_duration: Optional[str]) -> Optional[i
     return (hours * 3600) + (minutes * 60) + seconds
 
 async def fetch_transcript(video_id: str):
-    try:
-        ytt = YouTubeTranscriptApi()
-        fetched_data = ytt.fetch(video_id, languages=["en"])
-
-        print("Fetched raw transcript data:", fetched_data)
-
-        if not fetched_data or not hasattr(fetched_data, 'snippets'):
-            #unable ot fetch transcript
-            return ""
-
-        segments = [
-            {
-                "timestamp": item.start, 
-                "text": item.text, 
-                "seconds": item.start,
-                "end_seconds": item.start + item.duration,
-        
-            } 
-            for item in fetched_data.snippets
-        ]
-    except Exception as e:
-        print(f"Error fetching transcript for video {video_id}: {e}")
+    supadata_api_key = os.environ.get("SUPADATA_API_KEY")
+    if not supadata_api_key:
+        print("SUPADATA_API_KEY is missing")
         return ""
 
-    return " ".join(item["text"] for item in segments)
+    try:
+        async with httpx.AsyncClient(timeout=20.0) as http_client:
+            response = await http_client.get(
+                "https://api.supadata.ai/v1/youtube/transcript",
+                params={
+                    "videoId": video_id,
+                    "lang": "en",
+                    "text": "true",
+                },
+                headers={
+                    "x-api-key": supadata_api_key,
+                },
+            )
+            response.raise_for_status()
+            payload = response.json()
+    except Exception as e:
+        print(f"Error fetching transcript from Supadata for video {video_id}: {e}")
+        return ""
+
+    content = payload.get("content")
+
+    # text=true should return a plain string, but keep a safe fallback for chunked responses.
+    if isinstance(content, str):
+        return content.strip()
+
+    if isinstance(content, list):
+        return " ".join(
+            item.get("text", "").strip()
+            for item in content
+            if isinstance(item, dict) and item.get("text")
+        ).strip()
+
+    return ""
 
 
     
