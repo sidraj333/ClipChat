@@ -22,7 +22,7 @@ export default function App() {
     return () => chrome.runtime.onMessage.removeListener(onMessage);
   }, []);
 
-  // persist and auto-scroll when messages or tab change
+  // persist and auto-scroll when messages change
   useEffect(() => {
     // scroll to bottom on new message
     const el = containerRef.current;
@@ -31,7 +31,7 @@ export default function App() {
       const key = `messages_${tabInfo.tabId}`;
       chrome.storage.local.set({ [key]: messages });
     }
-  }, [messages, tabInfo?.tabId]);
+  }, [messages]);
 
   const pushMessage = (role, text) => {
     const msg = { id: Date.now(), role, text, ts: new Date().toISOString() };

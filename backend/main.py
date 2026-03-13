@@ -1,9 +1,11 @@
 import os
 import re
+import time
+from collections import OrderedDict
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Any, Optional
 from openai import OpenAI
 import httpx
 # third‑party helper for fetching YouTube transcripts via Python
@@ -35,6 +37,61 @@ api_key=os.environ.get("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
 
 
+class TTLRUCache:
+    def __init__(self, maxsize: int = 256, ttl_seconds: int = 1800):
+        self.maxsize = maxsize
+        self.ttl_seconds = ttl_seconds
+        self._store: OrderedDict[str, tuple[float, Any]] = OrderedDict()
+
+    def get(self, key: str):
+        now = time.time()
+        item = self._store.get(key)
+        if not item:
+            return None
+
+        expires_at, value = item
+        if expires_at < now:
+            self._store.pop(key, None)
+            return None
+
+        self._store.move_to_end(key)
+        return value
+
+    def set(self, key: str, value: Any):
+        expires_at = time.time() + self.ttl_seconds
+        self._store[key] = (expires_at, value)
+        self._store.move_to_end(key)
+
+        while len(self._store) > self.maxsize:
+            self._store.popitem(last=False)
+
+
+metadata_cache = TTLRUCache(maxsize=1000, ttl_seconds=60 * 60 * 6)
+transcript_cache = TTLRUCache(maxsize=200, ttl_seconds=60 * 60)
+
+
+async def get_video_metadata_cached(video_id: str):
+    cached = metadata_cache.get(video_id)
+    if cached is not None:
+        return cached
+
+    fresh = await fetch_video_metadata(video_id)
+    value = fresh or {}
+    metadata_cache.set(video_id, value)
+    return value
+
+
+async def get_transcript_cached(video_id: str):
+    cached = transcript_cache.get(video_id)
+    if cached is not None:
+        return cached
+
+    fresh = await fetch_transcript(video_id)
+    value = fresh or ""
+    transcript_cache.set(video_id, value)
+    return value
+
+
 
 @app.post("/chat", response_model=AskResponse)
 async def ask(req: AskRequest):
@@ -45,18 +102,18 @@ async def ask(req: AskRequest):
     print(req)
     try:
 
-        video_metadata = await fetch_video_metadata(req.videoId) if req.videoId else {}
+        video_metadata = await get_video_metadata_cached(req.videoId) if req.videoId else {}
 
         if req.videoId:
-            full_formatted_transcript = await fetch_transcript(req.videoId)
+            full_formatted_transcript = await get_transcript_cached(req.videoId)
         else:
             full_formatted_transcript = ""
         
         gpt_base_prompt = """
             You are ClipChat.
-            Answer the user's question directly.
-            If the question is NOT about this video, say that clearly and answer generally if possible.
-            Keep answers concise.
+            Answer the user's question directly based on the context.
+            If the question is NOT about this video, feel free to use your general knowledge. and use the internet if needed.
+
         """
 
 
