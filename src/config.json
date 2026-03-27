@@ -1,0 +1,15 @@
+{
+  "env": "development",
+  "apiBaseUrl": "http://localhost:8000",
+  "cognito": {
+    "region": "us-east-2",
+    "domain": "https://us-east-2d1imilwaf.auth.us-east-2.amazoncognito.com",
+    "appClientId": "59s4o1nrfblfh56fdi8it5tto5",
+    "scopes": [
+      "openid",
+      "email",
+      "profile"
+    ],
+    "redirectPath": "/callback"
+  }
+}

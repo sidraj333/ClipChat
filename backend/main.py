@@ -14,6 +14,7 @@ import httpx
 
 app = FastAPI()
 
+# CORS setup to allow requests from the frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  

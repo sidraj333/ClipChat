@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef } from "react";
+import useCognitoAuth from "./hooks/useCognitoAuth";
+import config from "./config";
 
 export default function App() {
   const [tabInfo, setTabInfo] = useState(null);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const containerRef = useRef(null);
+  const { isAuthenticated, startLogin, getStoredAuthToken } = useCognitoAuth();
+  
 
-  // load saved messages and subscribe to tab updates
+
+  // load saved messages and subscribe to tab updates to display correct messages
   useEffect(() => {
     const onMessage = (message) => {
       if (message.type === "TAB_UPDATE") setTabInfo(message);
@@ -64,12 +69,21 @@ export default function App() {
       playbackSpeed: videoData?.playbackSpeed,
     };
 
+    const bearerToken = await getStoredAuthToken();
+    if (!bearerToken) {
+      pushMessage("assistant", "Please log in before sending a message.");
+      return;
+    }
+
     const pending = pushMessage("assistant", "…thinking");
 
     try {
       const res = await fetch("http://localhost:8000/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${bearerToken}`,
+        },
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -91,6 +105,31 @@ export default function App() {
       setMessages(res[key] || []);
     });
   }, [tabInfo?.tabId]);
+
+  if (!isAuthenticated) {
+    return (
+      <div style={{ padding: 12, width: 320, display: "flex", flexDirection: "column", height: "100%" }}>
+        <h3 style={{ margin: "6px 0" }}>ClipChat</h3>
+        <div
+          style={{
+            flex: 1,
+            border: "1px solid #eee",
+            borderRadius: 6,
+            padding: 12,
+            marginBottom: 8,
+            minHeight: 200,
+            background: "#fafafa",
+            color: "#444",
+          }}
+        >
+          Please log in to use ClipChat.
+        </div>
+        <button onClick={startLogin} style={{ marginBottom: 8, padding: "8px 12px" }}>
+          Login with Cognito
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: 12, width: 320, display: "flex", flexDirection: "column", height: "100%" }}>
