@@ -28,3 +28,7 @@ backend/venv/
 backend/__pycache__/
 __pycache__/
 *.pyc
+
+# Secrets
+backend/.env
+.env

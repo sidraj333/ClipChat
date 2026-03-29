@@ -7,7 +7,7 @@ export default function App() {
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const containerRef = useRef(null);
-  const { isAuthenticated, startLogin, getStoredAuthToken } = useCognitoAuth();
+  const { isAuthenticated, startLogin, getStoredAuthToken, logout } = useCognitoAuth();
   
 
 
@@ -86,6 +86,17 @@ export default function App() {
         },
         body: JSON.stringify(body),
       });
+
+      if (res.status === 401) {
+        await logout();
+        setMessages((m) =>
+          m.map((msg) =>
+            msg.id === pending.id ? { ...msg, text: "Session expired. Please log in again." } : msg
+          )
+        );
+        return;
+      }
+
       const data = await res.json();
       setMessages((m) => m.map((msg) => (msg.id === pending.id ? { ...msg, text: data.answer } : msg)));
     } catch (err) {

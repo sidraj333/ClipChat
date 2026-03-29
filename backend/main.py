@@ -5,11 +5,13 @@ import time
 from collections import OrderedDict
 
 
-from fastapi import FastAPI
+from auth.cognito import verify_jwt_token
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from openai import OpenAI
+
 import httpx
 
 app = FastAPI()
@@ -96,12 +98,13 @@ async def get_transcript_cached(video_id: str):
 
 
 @app.post("/chat", response_model=AskResponse)
-async def ask(req: AskRequest):
+async def ask(req: AskRequest, claims: Dict[str, Any] = Depends(verify_jwt_token)):
     '''
         post request to ask gpt api a question about the youtube video
     '''
     print('asking')
     print(req)
+
     try:
 
         video_metadata = await get_video_metadata_cached(req.videoId) if req.videoId else {}

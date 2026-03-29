@@ -3,4 +3,4 @@ uvicorn[standard]
 httpx
 python-dotenv
 openai
-
+python-jose[cryptography]

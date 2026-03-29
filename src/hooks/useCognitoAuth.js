@@ -79,6 +79,17 @@ export default function useCognitoAuth() {
     return result.id_token || result.access_token || null;
   };
 
+  const logout = async () => {
+    await chrome.storage.local.remove([
+      "access_token",
+      "id_token",
+      "refresh_token",
+      "token_type",
+      "expires_at",
+    ]);
+    setIsAuthenticated(false);
+  };
+
   const startLogin = async () => {
     try {
       if (!chrome?.identity?.launchWebAuthFlow) {
@@ -155,5 +166,5 @@ export default function useCognitoAuth() {
     }
   };
 
-  return { isAuthenticated, startLogin, getStoredAuthToken };
+  return { isAuthenticated, startLogin, getStoredAuthToken, logout };
 }
