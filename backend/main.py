@@ -11,16 +11,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Any, Dict, Optional
 from openai import OpenAI
+from mangum import Mangum
 
 import httpx
 
 app = FastAPI()
+handler = Mangum(app) #make fastify app lambda compatible
 
 # CORS setup to allow requests from the frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

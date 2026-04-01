@@ -48,6 +48,26 @@ chrome.runtime.onStartup.addListener(() => {
   });
 });
 
+// Open side panel from extension action only on YouTube watch pages
+chrome.action.onClicked.addListener(async (tab) => {
+  if (!tab?.id || !tab?.url) return;
+  try {
+    const url = new URL(tab.url);
+    const isYouTubeWatch =
+      YOUTUBE_ORIGINS.has(url.origin) && url.pathname === YOUTUBE_PATHNAME;
+    if (!isYouTubeWatch) return;
+
+    await chrome.sidePanel.setOptions({
+      tabId: tab.id,
+      path: './index.html',
+      enabled: true,
+    });
+    await chrome.sidePanel.open({ tabId: tab.id });
+  } catch (e) {
+    console.error('action click side panel error:', e);
+  }
+});
+
 
 //enables user to enable sidepanel using toolbar icon
 chrome.contextMenus.onClicked.addListener((info, tab) => {
@@ -113,4 +133,3 @@ async function enableSidePanel(tab) {
   }
 
 }
-

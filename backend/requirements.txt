@@ -4,3 +4,4 @@ httpx
 python-dotenv
 openai
 python-jose[cryptography]
+mangum

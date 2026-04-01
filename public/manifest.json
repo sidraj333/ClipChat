@@ -4,12 +4,16 @@
   "version": "1.0.0",
   "description": "Ask GPT questions about any YouTube video.",
   "permissions": ["tabs", "storage", "sidePanel", "contextMenus", "identity"],
+  "side_panel": {
+    "default_path": "index.html"
+  },
   "host_permissions": [
     "*://www.youtube.com/*",
     "https://m.youtube.com/*",
     "https://api.openai.com/*"
   ],
   "background": { "service_worker": "background.js" },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApDcr9U8x0sKbx6mhjh4XUyUZeNga6Quw2tcqPdH5j0ygSsAS/3s3k9BN5ASFOI1PLzwqegSufvjiodt8UZ+1wzQ1fl8ZdNqG62o1qBSCBvXW6YM7JkJtS60tDHPJrN2IsE8qMOqVZuFszGUn2bogAZNxRv0fl/JMzZjX7RMLhopNLjEc4gzVmVJ/UAOklXLkuaOC1NTPEHxBPGI5XL7jkC3rizjGLDL1NHEtIkSyW9M+0JuQImY1OTwKxoH8mofJ7UWI/OoFUDlQltdp2i8/pyL0k03VtskzvSIPOuBkJ5vYt1aDbYCmq4sd8zC9B9pZ4KzNgqdwLRiYuzld4FIqmQIDAQAB",
   "action": {
     "default_title": "ClipChat"
   },

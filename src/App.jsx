@@ -78,7 +78,7 @@ export default function App() {
     const pending = pushMessage("assistant", "…thinking");
 
     try {
-      const res = await fetch("http://localhost:8000/chat", {
+      const res = await fetch("https://wlw5d67nle.execute-api.us-east-2.amazonaws.com/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
