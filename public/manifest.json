@@ -4,9 +4,6 @@
   "version": "1.0.0",
   "description": "Ask GPT questions about any YouTube video.",
   "permissions": ["tabs", "storage", "sidePanel", "contextMenus", "identity"],
-  "side_panel": {
-    "default_path": "index.html"
-  },
   "host_permissions": [
     "*://www.youtube.com/*",
     "https://m.youtube.com/*",

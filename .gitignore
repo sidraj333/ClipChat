@@ -30,6 +30,12 @@ backend/venv/
 backend/__pycache__/
 __pycache__/
 *.pyc
+.venv/
+venv/
+
+# Lambda build artifacts
+backend/package/
+backend/backend-lambda.zip
 
 # Secrets
 backend/.env

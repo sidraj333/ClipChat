@@ -1,31 +1,52 @@
 import { useState, useEffect, useRef } from "react";
 import useCognitoAuth from "./hooks/useCognitoAuth";
-import config from "./config";
 
 export default function App() {
   const [tabInfo, setTabInfo] = useState(null);
+  const [windowId, setWindowId] = useState(null);
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const containerRef = useRef(null);
   const { isAuthenticated, startLogin, getStoredAuthToken, logout } = useCognitoAuth();
-  
+
+  const setWindowInfo = (source) => {
+    const nextWindowId = source?.windowId ?? source?.id;
+    if (typeof nextWindowId !== "number") return;
+    setWindowId((prev) => (prev == null ? nextWindowId : prev));
+  };
 
 
   // load saved messages and subscribe to tab updates to display correct messages
   useEffect(() => {
+    chrome.windows.getCurrent((win) => {
+      setWindowInfo(win);
+    });
+
     const onMessage = (message) => {
-      if (message.type === "TAB_UPDATE") setTabInfo(message);
+      if (windowId != null && message.windowId !== windowId) return;
+      if (message.type === "TAB_UPDATE"){
+        setTabInfo(message);
+        setWindowInfo(message);
+      }
+
     };
     chrome.runtime.onMessage.addListener(onMessage);
 
     // query active tab immediately
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs && tabs[0];
-      if (tab) setTabInfo({ tabId: tab.id, tabUrl: tab.url, tabTitle: tab.title });
+      if (tab) {
+        setWindowInfo(tab);
+        setTabInfo({
+        tabId: tab.id,
+        windowId: tab.windowId,
+        tabUrl: tab.url,
+        tabTitle: tab.title});
+      }
     });
 
     return () => chrome.runtime.onMessage.removeListener(onMessage);
-  }, []);
+  }, [windowId]);
 
   // persist and auto-scroll when messages change
   useEffect(() => {
@@ -44,6 +65,7 @@ export default function App() {
     return msg;
   };
 
+  // sends a request to content.json
   const getVideoData = async () => {
     if (!tabInfo?.tabId) return null;
     try {
@@ -54,6 +76,7 @@ export default function App() {
     }
   };
 
+  //calls backend to fetch answer from backend lambda function
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!text.trim()) return;
