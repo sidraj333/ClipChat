@@ -1,9 +1,6 @@
 import json
 import os
 import re
-import time
-from collections import OrderedDict
-
 
 from auth.cognito import verify_jwt_token
 from fastapi import FastAPI, Depends
@@ -12,6 +9,14 @@ from pydantic import BaseModel
 from typing import Any, Dict, Optional
 from openai import OpenAI
 from mangum import Mangum
+
+from cache.redis_client import (
+    cache_get_json,
+    cache_set_json,
+    acquire_lock,
+    release_lock,
+)
+
 
 import httpx
 
@@ -38,64 +43,122 @@ class AskResponse(BaseModel):
     answer: str
     status_code: int
 
+class PrefetchRequest(BaseModel):
+    videoId: str
+
+class PrefetchResponse(BaseModel):
+    status: str
+    status_code: int
+
 
 api_key=os.environ.get("OPENAI_API_KEY")
 client = OpenAI(api_key=api_key)
-
-
-class TTLRUCache:
-    def __init__(self, maxsize: int = 256, ttl_seconds: int = 1800):
-        self.maxsize = maxsize
-        self.ttl_seconds = ttl_seconds
-        self._store: OrderedDict[str, tuple[float, Any]] = OrderedDict()
-
-    def get(self, key: str):
-        now = time.time()
-        item = self._store.get(key)
-        if not item:
-            return None
-
-        expires_at, value = item
-        if expires_at < now:
-            self._store.pop(key, None)
-            return None
-
-        self._store.move_to_end(key)
-        return value
-
-    def set(self, key: str, value: Any):
-        expires_at = time.time() + self.ttl_seconds
-        self._store[key] = (expires_at, value)
-        self._store.move_to_end(key)
-
-        while len(self._store) > self.maxsize:
-            self._store.popitem(last=False)
-
-
-metadata_cache = TTLRUCache(maxsize=1000, ttl_seconds=60 * 60 * 6)
-transcript_cache = TTLRUCache(maxsize=200, ttl_seconds=60 * 60)
+TRANSCRIPT_TTL_SECONDS = 60 * 60 * 6
+META_DATA_TTL_SECONDS = 60 * 60 * 6
 
 
 async def get_video_metadata_cached(video_id: str):
-    cached = metadata_cache.get(video_id)
-    if cached is not None:
-        return cached
+    meta_data_key = f"video:{video_id}:meta_data"
+    cached_meta_data = await cache_get_json(meta_data_key)
+    if cached_meta_data is not None:
+        print(f"meta_data_cache_hit video_id={video_id}")
+        return cached_meta_data
 
-    fresh = await fetch_video_metadata(video_id)
-    value = fresh or {}
-    metadata_cache.set(video_id, value)
-    return value
+    print(f"meta_data_cache_miss video_id={video_id}")
+    video_meta_data = await fetch_video_metadata(video_id) or {}
+    if video_meta_data:
+        await cache_set_json(
+            meta_data_key,
+            video_meta_data,
+            ttl_seconds=META_DATA_TTL_SECONDS,
+        )
+        print(f"meta_data_cache_set video_id={video_id}")
+    return video_meta_data
 
 
 async def get_transcript_cached(video_id: str):
-    cached = transcript_cache.get(video_id)
-    if cached is not None:
-        return cached
+    transcript_key = f"video:{video_id}:transcript"
+    cached_transcript = await cache_get_json(transcript_key)
+    if cached_transcript is not None:
+        print(f"transcript_cache_hit video_id={video_id}")
+        return cached_transcript.get("text", "")
 
-    fresh = await fetch_transcript(video_id)
-    value = fresh or ""
-    transcript_cache.set(video_id, value)
-    return value
+    print(f"transcript_cache_miss video_id={video_id}")
+    transcript_text = await fetch_transcript(video_id) or ""
+    if transcript_text:
+        await cache_set_json(
+            transcript_key,
+            {"text": transcript_text},
+            ttl_seconds=TRANSCRIPT_TTL_SECONDS,
+        )
+        print(f"transcript_cache_set video_id={video_id}")
+    return transcript_text
+
+@app.post("/prefetch", response_model=PrefetchResponse)
+async def prefetch(req: PrefetchRequest, claims: Dict[str, Any] = Depends(verify_jwt_token)):
+    video_id = (req.videoId or "").strip()
+    if not video_id:
+        return PrefetchResponse(status="invalid_video_id", status_code=400)
+    print(f"prefetch_requested video_id={video_id}")
+    transcript_key = f"video:{video_id}:transcript"
+    meta_data_key = f"video:{video_id}:meta_data"
+    lock_key = f"lock:video:{video_id}"
+
+    try:
+        cached_transcript = await cache_get_json(transcript_key)
+        cached_metadata = await cache_get_json(meta_data_key)
+        if cached_transcript is not None and cached_metadata is not None:
+            #video data is already in the cache
+            print(f"prefetch_cache_hit video_id={video_id}")
+            return PrefetchResponse(status = "video already cached", status_code = 200)
+
+        got_lock = await acquire_lock(lock_key, ttl_seconds = 60)
+        if not got_lock:
+            print(f"prefetch_in_progress video_id={video_id}")
+            return PrefetchResponse(status = 'video in progress of being cached', status_code = 200)
+        try:
+            print(f"prefetch_lock_acquired video_id={video_id}")
+            # Re-check after lock (another request may have filled cache)
+            cached_transcript = await cache_get_json(transcript_key)
+            cached_metadata = await cache_get_json(meta_data_key)
+
+            if cached_transcript is None:
+                transcript_text = await fetch_transcript(video_id)
+                if not transcript_text:
+                    print("video does not have transcript data")
+                else:
+                    await cache_set_json(transcript_key, {"text": transcript_text}, ttl_seconds=60 * 60 * 6)
+                    print(f"prefetch_transcript_cached video_id={video_id}")
+            if cached_metadata is None:
+                video_meta_data = await fetch_video_metadata(video_id)
+                if not video_meta_data:
+                    print("video does not have any meta data")
+                else:
+                    await cache_set_json(meta_data_key, video_meta_data, ttl_seconds=60 * 60 * 6)
+                    print(f"prefetch_meta_data_cached video_id={video_id}")
+            print(f"prefetch_complete video_id={video_id}")
+            return PrefetchResponse(status="prefetched", status_code=200)
+        finally:
+            await release_lock(lock_key)
+            print(f"prefetch_lock_released video_id={video_id}")
+    except Exception as e:
+        print("Prefetch error:", e)
+        return PrefetchResponse(status="error", status_code=500)
+
+
+        
+
+
+
+
+
+
+        
+ 
+
+
+
+
 
 
 

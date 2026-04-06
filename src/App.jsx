@@ -140,6 +140,59 @@ export default function App() {
     });
   }, [tabInfo?.tabId]);
 
+  async function shouldPrefetchVideo(videoId) {
+    if (!videoId) return false;
+    const key = `prefetch:${videoId}`;
+    const now = Date.now();
+
+    const existing = await chrome.storage.session.get([key]);
+    const lastTs = existing[key];
+
+    if (lastTs && now - lastTs < PREFETCH_DEDUPE_MS) return false;
+
+    await chrome.storage.session.set({ [key]: now });
+    return true;
+  }
+
+
+  const PREFETCH_DEDUPE_MS = 10 * 60 * 1000; // 10 min
+  async function preFetchVideo(videoId, bearerToken) {
+    const shouldPreFetch = await shouldPrefetchVideo(videoId);
+    if (!shouldPreFetch) return; //video was already pre fetched
+    
+    // request to prefetch video through backend lambda
+    const res = await fetch("https://wlw5d67nle.execute-api.us-east-2.amazonaws.com/prefetch", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${bearerToken}`,
+      },
+      body: JSON.stringify({ videoId }),
+    });
+    console.log("prefetch status:", res.status, "videoId:", videoId);
+  }
+
+  // prefetches video (populates cache) when active video's ID changes
+  useEffect(() => {
+    const executePreFetch = async () => {
+      if (!tabInfo?.tabId) return;
+      const token = await getStoredAuthToken();
+      if (!token) return;
+      const videoData = await getVideoData();
+      const videoId = videoData?.videoId;
+      if (!videoId) return;
+      await preFetchVideo(videoId, token);
+    };
+    executePreFetch();
+  }, [tabInfo?.tabUrl])
+
+
+
+
+
+
+ 
+
   if (!isAuthenticated) {
     return (
       <div style={{ padding: 12, width: 320, display: "flex", flexDirection: "column", height: "100%" }}>
@@ -164,6 +217,7 @@ export default function App() {
       </div>
     );
   }
+
 
   return (
     <div style={{ padding: 12, width: 320, display: "flex", flexDirection: "column", height: "100%" }}>

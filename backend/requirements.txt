@@ -5,3 +5,5 @@ python-dotenv
 openai
 python-jose[cryptography]
 mangum
+redis>=5.0.0
+
