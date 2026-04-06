@@ -46,17 +46,19 @@ chrome.runtime.onStartup.addListener(() => {
 syncActiveTabSidePanel();
 
 // Open side panel from extension action only on YouTube watch pages
-chrome.action.onClicked.addListener(async (tab) => {
+chrome.action.onClicked.addListener((tab) => {
   if (!tab?.id || !tab?.url) return;
   try {
     if (!isYouTubeWatchTab(tab)) return;
 
-    await chrome.sidePanel.setOptions({
+    chrome.sidePanel.setOptions({
       tabId: tab.id,
       path: './index.html',
       enabled: true,
     });
-    await chrome.sidePanel.open({ tabId: tab.id });
+    chrome.sidePanel.open({ tabId: tab.id }).catch((e) => {
+      console.error('action click side panel error:', e);
+    });
   } catch (e) {
     console.error('action click side panel error:', e);
   }
