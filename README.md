@@ -40,4 +40,4 @@ ClipChat is a Chrome extension that lets you ask questions about the current You
    ```
 2. Go to `chrome://extensions`.
 3. Click the refresh icon on ClipChat.
-4. If behavior looks stale, restart Chrome.
+4. Restart Chrome
