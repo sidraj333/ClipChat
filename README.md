@@ -1,12 +1,43 @@
-# React + Vite
+# ClipChat Chrome Extension
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ClipChat is a Chrome extension that lets you ask questions about the current YouTube video.
 
-Currently, two official plugins are available:
+## Prerequisites
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Node.js 20
+- npm
+- Google Chrome
 
-## Expanding the ESLint configuration
+## Setup
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. Install and use Node 20:
+   ```bash
+   nvm install 20
+   nvm use 20
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Build the extension:
+   ```bash
+   npm run build
+   ```
+
+## Load in Chrome (Developer Mode)
+
+1. Open Chrome and go to `chrome://extensions`.
+2. Turn on `Developer mode` (top-right).
+3. Click `Load unpacked`.
+4. Select the project's `dist/` folder.
+5. Restart Chrome once after loading/updating the extension.
+
+## Update flow after code changes
+
+1. Run:
+   ```bash
+   npm run build
+   ```
+2. Go to `chrome://extensions`.
+3. Click the refresh icon on ClipChat.
+4. If behavior looks stale, restart Chrome.
